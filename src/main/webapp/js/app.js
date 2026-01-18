@@ -1,10 +1,10 @@
 document.addEventListener("DOMContentLoaded", function () {
-  // DOMContentLoaded: DOM pronto prima di getElementById. [web:136]
   var els = {
     wpm: document.getElementById("wpm"),
     wpmVal: document.getElementById("wpmVal"),
     play: document.getElementById("play"),
     pause: document.getElementById("pause"),
+    restart: document.getElementById("restart"),
     back: document.getElementById("back"),
     forward: document.getElementById("forward"),
     load: document.getElementById("load"),
@@ -13,7 +13,6 @@ document.addEventListener("DOMContentLoaded", function () {
     context: document.getElementById("context")
   };
 
-  // Fail-fast su id mancanti
   for (var k in els) {
     if (Object.prototype.hasOwnProperty.call(els, k) && !els[k]) {
       throw new Error("Elemento DOM non trovato: " + k);
@@ -42,7 +41,6 @@ document.addEventListener("DOMContentLoaded", function () {
   function tokenize(input) {
     var text = String(input || "").trim().replace(/\s+/g, " ");
     if (!text) return [];
-    // Tokenizza separando parole e punteggiatura
     return text
       .split(/(\s+|[,.!?;:()"“”'’—-])/)
       .filter(function (t) { return t && !/^\s+$/.test(t); });
@@ -52,7 +50,6 @@ document.addEventListener("DOMContentLoaded", function () {
     return /^[,.!?;:()"“”'’—-]$/.test(t);
   }
 
-  // Euristica ORP
   function orpIndex(word) {
     var w = String(word).replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]/g, "");
     var n = Math.max(w.length, 1);
@@ -95,7 +92,6 @@ document.addEventListener("DOMContentLoaded", function () {
     return 60000 / wpm;
   }
 
-  // Tempo extra: anche se “salti” la punteggiatura, serve una pausa
   function multiplierForToken(t) {
     if (/^[.!?]$/.test(t)) return 2.2;
     if (/^[,;:]$/.test(t)) return 1.5;
@@ -113,6 +109,15 @@ document.addEventListener("DOMContentLoaded", function () {
     els.pause.disabled = !playing;
   }
 
+  function goToStart() {
+    if (!tokens.length) return;
+    index = 0;
+    nextAt = 0; // reset timing così riparte fluido anche se stava in play
+    if (!isPunctuation(tokens[0])) renderWord(tokens[0]);
+    else els.bigWord.textContent = "";
+    renderContext();
+  }
+
   function tick(now) {
     if (!playing) return;
 
@@ -127,31 +132,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
       var t = (tokens[index] !== undefined && tokens[index] !== null) ? tokens[index] : "";
 
-      // PUNTEGGIATURA: non mostrare nel word box, ma fai pausa + avanza
       if (isPunctuation(t)) {
         nextAt += baseMsPerWord() * multiplierForToken(t);
-        // aggiorna solo il contesto (così vedi comunque virgole/punti sotto)
         renderContext();
-
         index = Math.min(index + 1, tokens.length - 1);
-
-        // se siamo arrivati in fondo, stop
         if (index === tokens.length - 1) {
           playing = false;
           toggleButtons();
           return;
         }
       } else {
-        // PAROLA: mostra parola grande e contesto
         renderWord(t);
         renderContext();
-
         nextAt += baseMsPerWord() * multiplierForToken(t);
 
         index = Math.min(index + 1, tokens.length - 1);
-
         if (index === tokens.length - 1) {
-          // mostra l'ultima parola e stop
           var last = tokens[index];
           if (!isPunctuation(last)) renderWord(last);
           renderContext();
@@ -162,7 +158,6 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    // requestAnimationFrame per scheduling. [web:131]
     rafId = window.requestAnimationFrame(tick);
   }
 
@@ -177,33 +172,26 @@ document.addEventListener("DOMContentLoaded", function () {
   function pause() {
     playing = false;
     toggleButtons();
-    if (rafId) window.cancelAnimationFrame(rafId); // cancella frame schedulato. [web:177]
+    if (rafId) window.cancelAnimationFrame(rafId);
     rafId = null;
   }
 
   function jump(delta) {
     if (!tokens.length) return;
     index = Math.max(0, Math.min(tokens.length - 1, index + delta));
-
-    // se finisci su punteggiatura, non mostrarla grande (mostra vuoto o parola successiva)
-    if (isPunctuation(tokens[index])) {
-      els.bigWord.textContent = "";
-    } else {
-      renderWord(tokens[index]);
-    }
+    if (isPunctuation(tokens[index])) els.bigWord.textContent = "";
+    else renderWord(tokens[index]);
     renderContext();
   }
 
   function loadText() {
     tokens = tokenize(els.text.value);
     index = 0;
-    // prima render
     if (tokens.length && !isPunctuation(tokens[0])) renderWord(tokens[0]);
     else els.bigWord.textContent = "";
     renderContext();
   }
 
-  // Eventi
   els.wpm.addEventListener("input", function () {
     els.wpmVal.textContent = els.wpm.value;
   });
@@ -211,6 +199,7 @@ document.addEventListener("DOMContentLoaded", function () {
   els.load.addEventListener("click", loadText);
   els.play.addEventListener("click", play);
   els.pause.addEventListener("click", pause);
+  els.restart.addEventListener("click", goToStart);
   els.back.addEventListener("click", function () { jump(-1); });
   els.forward.addEventListener("click", function () { jump(+1); });
 
@@ -221,9 +210,11 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (e.code === "ArrowLeft") jump(-1);
     if (e.code === "ArrowRight") jump(+1);
+
+    // Home = torna all'inizio (comodo da tastiera)
+    if (e.key === "Home") goToStart();
   });
 
-  // Stato iniziale
   els.wpmVal.textContent = els.wpm.value;
   els.bigWord.textContent = "";
   renderContext();
