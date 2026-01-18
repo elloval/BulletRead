@@ -1,4 +1,4 @@
-#Bullet Read
+# Bullet Read
 Bullet Read è una webapp minimal per leggere testi in modalità RSVP (Rapid Serial Visual Presentation): invece di scorrere con gli occhi su righe e paragrafi, mostra una parola alla volta in un punto fisso dello schermo, con una riga di contesto sotto che evidenzia la parola corrente.
 
 Funzionalità
