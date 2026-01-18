@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", function () {
-  // DOMContentLoaded: garantisce che gli elementi esistano prima di fare getElementById. [web:136]
+  // DOMContentLoaded: DOM pronto prima di getElementById. [web:136]
   var els = {
     wpm: document.getElementById("wpm"),
     wpmVal: document.getElementById("wpmVal"),
@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
     context: document.getElementById("context")
   };
 
-  // Fail-fast: se manca un id nell'HTML lo vedi subito
+  // Fail-fast su id mancanti
   for (var k in els) {
     if (Object.prototype.hasOwnProperty.call(els, k) && !els[k]) {
       throw new Error("Elemento DOM non trovato: " + k);
@@ -42,13 +42,17 @@ document.addEventListener("DOMContentLoaded", function () {
   function tokenize(input) {
     var text = String(input || "").trim().replace(/\s+/g, " ");
     if (!text) return [];
-    // Parole e punteggiatura separati
+    // Tokenizza separando parole e punteggiatura
     return text
       .split(/(\s+|[,.!?;:()"“”'’—-])/)
       .filter(function (t) { return t && !/^\s+$/.test(t); });
   }
 
-  // Euristica ORP: lettera "focus" in base alla lunghezza
+  function isPunctuation(t) {
+    return /^[,.!?;:()"“”'’—-]$/.test(t);
+  }
+
+  // Euristica ORP
   function orpIndex(word) {
     var w = String(word).replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]/g, "");
     var n = Math.max(w.length, 1);
@@ -91,10 +95,12 @@ document.addEventListener("DOMContentLoaded", function () {
     return 60000 / wpm;
   }
 
+  // Tempo extra: anche se “salti” la punteggiatura, serve una pausa
   function multiplierForToken(t) {
     if (/^[.!?]$/.test(t)) return 2.2;
     if (/^[,;:]$/.test(t)) return 1.5;
     if (/^[-—]$/.test(t)) return 1.3;
+    if (/^[()"'“”'’]$/.test(t)) return 1.1;
 
     var len = String(t).replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]/g, "").length;
     if (len >= 12) return 1.35;
@@ -113,18 +119,41 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!nextAt) nextAt = now;
 
     if (now >= nextAt) {
+      if (!tokens.length) {
+        playing = false;
+        toggleButtons();
+        return;
+      }
+
       var t = (tokens[index] !== undefined && tokens[index] !== null) ? tokens[index] : "";
-      renderWord(t);
-      renderContext();
 
-      var dt = baseMsPerWord() * multiplierForToken(t);
-      nextAt += dt;
+      // PUNTEGGIATURA: non mostrare nel word box, ma fai pausa + avanza
+      if (isPunctuation(t)) {
+        nextAt += baseMsPerWord() * multiplierForToken(t);
+        // aggiorna solo il contesto (così vedi comunque virgole/punti sotto)
+        renderContext();
 
-      if (tokens.length > 0) {
         index = Math.min(index + 1, tokens.length - 1);
+
+        // se siamo arrivati in fondo, stop
         if (index === tokens.length - 1) {
-          // ultimo token: render e stop
-          renderWord(tokens[index]);
+          playing = false;
+          toggleButtons();
+          return;
+        }
+      } else {
+        // PAROLA: mostra parola grande e contesto
+        renderWord(t);
+        renderContext();
+
+        nextAt += baseMsPerWord() * multiplierForToken(t);
+
+        index = Math.min(index + 1, tokens.length - 1);
+
+        if (index === tokens.length - 1) {
+          // mostra l'ultima parola e stop
+          var last = tokens[index];
+          if (!isPunctuation(last)) renderWord(last);
           renderContext();
           playing = false;
           toggleButtons();
@@ -133,7 +162,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    // requestAnimationFrame per scheduling legato ai repaint. [web:131]
+    // requestAnimationFrame per scheduling. [web:131]
     rafId = window.requestAnimationFrame(tick);
   }
 
@@ -148,25 +177,33 @@ document.addEventListener("DOMContentLoaded", function () {
   function pause() {
     playing = false;
     toggleButtons();
-    if (rafId) window.cancelAnimationFrame(rafId);
+    if (rafId) window.cancelAnimationFrame(rafId); // cancella frame schedulato. [web:177]
     rafId = null;
   }
 
   function jump(delta) {
     if (!tokens.length) return;
     index = Math.max(0, Math.min(tokens.length - 1, index + delta));
-    renderWord(tokens[index]);
+
+    // se finisci su punteggiatura, non mostrarla grande (mostra vuoto o parola successiva)
+    if (isPunctuation(tokens[index])) {
+      els.bigWord.textContent = "";
+    } else {
+      renderWord(tokens[index]);
+    }
     renderContext();
   }
 
   function loadText() {
     tokens = tokenize(els.text.value);
     index = 0;
-    renderWord(tokens[0] || "");
+    // prima render
+    if (tokens.length && !isPunctuation(tokens[0])) renderWord(tokens[0]);
+    else els.bigWord.textContent = "";
     renderContext();
   }
 
-  // Eventi (addEventListener standard DOM). [web:137]
+  // Eventi
   els.wpm.addEventListener("input", function () {
     els.wpmVal.textContent = els.wpm.value;
   });
@@ -188,6 +225,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Stato iniziale
   els.wpmVal.textContent = els.wpm.value;
-  renderWord("");
+  els.bigWord.textContent = "";
   renderContext();
 });
