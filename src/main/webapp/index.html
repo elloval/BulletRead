@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bullet Read</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <h1>Bullet Read</h1>
+
+      <div class="controls">
+        <label>WPM
+          <input id="wpm" type="range" min="120" max="900" value="300" />
+          <span id="wpmVal">300</span>
+        </label>
+
+        <button id="play">Play</button>
+        <button id="pause" disabled>Pausa</button>
+        <button id="back">«</button>
+        <button id="forward">»</button>
+      </div>
+    </header>
+
+    <section class="reader">
+      <div id="bigWord" class="big-word" aria-live="polite"></div>
+      <div id="context" class="context"></div>
+    </section>
+
+    <section class="input">
+      <textarea id="text" rows="6" placeholder="Incolla qui il testo..."></textarea>
+      <button id="load">Carica testo</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
